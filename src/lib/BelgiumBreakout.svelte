@@ -1,6 +1,6 @@
 <script>
   import { geoMercator, geoPath } from 'd3-geo';
-  import { interpolateYlGnBu } from 'd3-scale-chromatic';
+  import { interpolateBlues, interpolatePurples, interpolateOranges, interpolateGreens } from 'd3-scale-chromatic';
   import { onMount } from 'svelte';
   import { fly } from 'svelte/transition';
   import { flip } from 'svelte/animate';
@@ -15,7 +15,13 @@
   const WALL = 6;
   const ASPECT = W / H;
 
-  const heat = (t) => interpolateYlGnBu(0.15 + t * 0.8);
+  const heatScales = {
+  1: interpolateBlues,
+  2: interpolatePurples,
+  3: interpolateOranges,
+  4: interpolateGreens
+};
+const heat = (t, groupe1) => (heatScales[groupe1] ?? interpolateBlues)(0.25 + t * 0.7);
 
   const setup = (() => {
     const features = geojson.features;
@@ -44,6 +50,7 @@
         const w = b[1][0] - x;
         const h = b[1][1] - y;
         const pop = f.properties?.population ?? 0;
+const groupe1 = f.properties?.groupe1 ?? 1;
         const name = f.properties?.name_fr ?? f.properties?.name_nl ?? '?';
         return {
           id: String(f.properties?.id ?? name),
@@ -55,6 +62,7 @@
           cy: y + h / 2,
           name,
           pop,
+  groupe1,
           rank: rankByNis.get(String(f.properties?.id)) ?? 0,
           alive: true
         };
@@ -67,7 +75,7 @@
   })();
 
   const { maxPop, initialBricks, totalPop, topCity } = setup;
-  const popColor = (pop) => heat(Math.sqrt(pop) / Math.sqrt(maxPop));
+  const popColor = (pop, groupe1) => heat(Math.sqrt(pop) / Math.sqrt(maxPop), groupe1);
 
   let bricks = $state(initialBricks.map((b) => ({ ...b })));
   let score = $state(0);
@@ -332,7 +340,7 @@
 
     const cx = b.x + b.w / 2;
     const cy = b.y + b.h / 2;
-    spawnParticles(cx, cy, popColor(b.pop), (isMission ? 18 : 8) + (combo > 3 ? 6 : 0));
+    spawnParticles(cx, cy, popColor(b.pop, b.groupe1), (isMission ? 18 : 8) + (combo > 3 ? 6 : 0));
     if (combo >= 2) spawnPopup(cx, cy, `×${combo}`);
 
     if (b.rank > 0 && b.rank <= 15) spawnExtraBall(ball.x, ball.y);
@@ -572,7 +580,7 @@
               width={b.w}
               height={b.h}
               rx="2"
-              fill={popColor(b.pop)}
+              fill={popColor(b.pop, b.groupe1)}
               stroke="var(--brick-stroke)"
               stroke-width="0.8"
             />
