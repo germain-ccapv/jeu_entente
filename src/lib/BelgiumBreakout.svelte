@@ -339,20 +339,24 @@ communeRemaining = freshCommuneRemaining();
       missionFlash = 1;
     }
     score += gain;
-    const remaining = (communeRemaining.get(b.name) ?? 1) - 1;
+    const cellsTotal = communeCellCount.get(b.name) ?? 1;
+const remaining = (communeRemaining.get(b.name) ?? cellsTotal) - 1;
 communeRemaining.set(b.name, remaining);
+const cellsDestroyed = cellsTotal - remaining;
 if (remaining <= 0) {
   freedCount += 1;
   freedPop += b.pop;
 }
 
-    destroyed.unshift({
-      key: destroyedSeq++,
-      name: b.name,
-      pop: b.pop,
-      rank: b.rank,
-      points: gain
-    });
+destroyed.unshift({
+  key: destroyedSeq++,
+  name: b.name,
+  pop: b.pop,
+  rank: b.rank,
+  points: gain,
+  cellsDestroyed,
+  cellsTotal
+});
     if (destroyed.length > 60) destroyed.length = 60;
 
     const cx = b.x + b.w / 2;
@@ -795,7 +799,7 @@ const legendByGroup = $derived(
             <span class="dot" style:background={popColor(d.pop)}></span>
             <span class="name">{d.name}</span>
             {#if d.rank <= 20}<span class="rank">#{d.rank}</span>{/if}
-            <span class="pop">{fmt.format(d.pop)}</span>
+            <span class="pop">{d.cellsDestroyed}/{d.cellsTotal}</span>
           </li>
         {/each}
         {#if destroyed.length === 0}
