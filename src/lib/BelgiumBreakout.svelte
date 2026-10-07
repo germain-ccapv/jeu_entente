@@ -110,10 +110,11 @@ let communeRemaining = $state(freshCommuneRemaining());
     if (phase === 'playing') paused = !paused;
   }
 
-  let destroyed = $state([]);
-  let destroyedSeq = 0;
-  let freedCount = $state(0);
-  let freedPop = $state(0);
+  let destroyed = $state([]);      // une entrée par commune, mise à jour en direct
+let destroyedSeq = 0;
+let freedCount = $state(0);
+let freedPop = $state(0);
+let lastFreed = $state(null);    // dernière commune TOTALEMENT libérée (bandeau du bas)
 
   const popPct = $derived(
     !totalPop ? 0 : freedPop >= totalPop ? 100 : Math.min(99, Math.floor((freedPop / totalPop) * 100))
@@ -237,6 +238,7 @@ let communeRemaining = $state(freshCommuneRemaining());
     destroyed = [];
     freedCount = 0;
     freedPop = 0;
+lastFreed = null;
 communeRemaining = freshCommuneRemaining();
     mission = null;
     missionsDone = 0;
@@ -343,22 +345,32 @@ communeRemaining = freshCommuneRemaining();
 const remaining = (communeRemaining.get(b.name) ?? cellsTotal) - 1;
 communeRemaining.set(b.name, remaining);
 const cellsDestroyed = cellsTotal - remaining;
-if (remaining <= 0) {
+const communeFreed = remaining <= 0;
+
+if (communeFreed) {
   freedCount += 1;
   freedPop += b.pop;
+  lastFreed = { name: b.name, pop: b.pop, rank: b.rank, points: gain };
 }
 
-destroyed.unshift({
-  key: destroyedSeq++,
-  name: b.name,
-  pop: b.pop,
-  rank: b.rank,
-  points: gain,
-  cellsDestroyed,
-  cellsTotal
-});
-    if (destroyed.length > 60) destroyed.length = 60;
-
+const existing = destroyed.find((d) => d.name === b.name);
+if (existing) {
+  existing.cellsDestroyed = cellsDestroyed;
+  existing.cellsTotal = cellsTotal;
+  existing.freed = communeFreed;
+} else {
+  destroyed.unshift({
+    key: destroyedSeq++,
+    name: b.name,
+    pop: b.pop,
+    rank: b.rank,
+    groupe1: b.groupe1,
+    cellsDestroyed,
+    cellsTotal,
+    freed: communeFreed
+  });
+}
+if (destroyed.length > 60) destroyed.length = 60;
     const cx = b.x + b.w / 2;
     const cy = b.y + b.h / 2;
     spawnParticles(cx, cy, popColor(b.pop, b.groupe1), (isMission ? 18 : 8) + (combo > 3 ? 6 : 0));
@@ -794,29 +806,31 @@ const legendByGroup = $derived(
         <strong>{fmt.format(freedPop)}</strong>
       </div>
       <ol class="log-list">
-        {#each destroyed as d (d.key)}
-          <li in:fly={{ y: -14, duration: 260 }} animate:flip={{ duration: 220 }}>
-            <span class="dot" style:background={popColor(d.pop)}></span>
-            <span class="name">{d.name}</span>
-            {#if d.rank <= 20}<span class="rank">#{d.rank}</span>{/if}
-            <span class="pop">{d.cellsDestroyed}/{d.cellsTotal}</span>
-          </li>
-        {/each}
-        {#if destroyed.length === 0}
-          <li class="empty">Aucune commune libérée… pour l'instant.</li>
-        {/if}
-      </ol>
+  {#each destroyed as d (d.key)}
+    <li class:freed={d.freed} in:fly={{ y: -14, duration: 260 }} animate:flip={{ duration: 220 }}>
+      <span class="dot" style:background={popColor(d.pop, d.groupe1)}></span>
+      <span class="name">{d.name}</span>
+      {#if d.freed}
+        <span class="freed-badge" title="Commune libérée">✓</span>
+      {/if}
+      <span class="pop">{d.freed ? fmt.format(d.pop) : `${d.cellsDestroyed}/${d.cellsTotal}`}</span>
+    </li>
+  {/each}
+  {#if destroyed.length === 0}
+    <li class="empty">Aucune commune libérée… pour l'instant.</li>
+  {/if}
+</ol>
     </aside>
   </div>
 
   <p class="ticker" bind:this={tickerEl}>
-    {#if destroyed[0]}
-      <strong>{destroyed[0].name}</strong>
-      libérée · {fmt.format(destroyed[0].pop)} hab.{#if destroyed[0].rank <= 10} · <strong>{destroyed[0].rank}ᵉ</strong> commune la plus peuplée{/if} · +{fmt.format(destroyed[0].points)} pts
-    {:else}
-      Vise St André et Castellane — les grandes villes valent le plus de points.
-    {/if}
-  </p>
+  {#if lastFreed}
+    <strong>{lastFreed.name}</strong>
+    libérée · {fmt.format(lastFreed.pop)} hab.{#if lastFreed.rank <= 10} · <strong>{lastFreed.rank}ᵉ</strong> commune la plus peuplée{/if} · +{fmt.format(lastFreed.points)} pts
+  {:else}
+    Vise Manosque et Digne-les-Bains — les grandes villes valent le plus de points.
+  {/if}
+</p>
 </div>
 
 <style>
@@ -1120,6 +1134,15 @@ const legendByGroup = $derived(
     min-height: 0;
     scrollbar-width: thin;
   }
+.log-list li.freed {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border-radius: 6px;
+}
+.freed-badge {
+  color: var(--accent);
+  font-weight: 700;
+  margin-left: 0.2rem;
+}
   .log-list li {
     display: flex;
     align-items: center;
