@@ -499,7 +499,13 @@ if (remaining <= 0) {
     }
   };
 
-  const legend = $derived([0, 0.25, 0.5, 0.75, 1].map((t) => heat(t)));
+  const legendStops = [0, 0.33, 0.66, 1];
+const legendByGroup = $derived(
+  [1, 2, 3, 4].map((g) => ({
+    groupe1: g,
+    swatches: legendStops.map((t) => heat(t, g))
+  }))
+);
 </script>
 
 <svelte:window onmousemove={onMouseMove} onkeydown={onKey} />
@@ -508,13 +514,18 @@ if (remaining <= 0) {
   <header class="hud" bind:this={hudEl}>
     <div class="title">
       <h1>CCAPV Breakout</h1>
-      <div class="legend" aria-hidden="true">
-        <span class="legend-label">Population</span>
-        <span class="swatches">
-          {#each legend as c}<span class="sw" style:background={c}></span>{/each}
-        </span>
-        <span class="legend-ends"><span>faible</span><span>élevée</span></span>
-      </div>
+      <div class="legend legend-multi" aria-hidden="true">
+  <span class="legend-label">Population par EPCI</span>
+  {#each legendByGroup as g}
+    <span class="legend-group">
+      <span class="legend-group-label">EPCI {g.groupe1}</span>
+      <span class="swatches">
+        {#each g.swatches as c}<span class="sw" style:background={c}></span>{/each}
+      </span>
+    </span>
+  {/each}
+  <span class="legend-ends"><span>faible</span><span>élevée</span></span>
+</div>
     </div>
 
     <div class="stats">
@@ -842,6 +853,19 @@ if (remaining <= 0) {
     gap: 0.4rem;
     margin-top: 0.3rem;
   }
+.legend-multi {
+  flex-wrap: wrap;
+  row-gap: 0.25rem;
+}
+.legend-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.legend-group-label {
+  font-size: 0.6rem;
+  color: var(--text-muted);
+}
   .legend-label {
     font-size: 0.62rem;
     letter-spacing: 0.1em;
