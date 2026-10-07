@@ -41,6 +41,14 @@ const heat = (t, groupe1) => (heatScales[groupe1] ?? interpolateBlues)(0.25 + t 
         .sort((a, b) => (b.properties?.population ?? 0) - (a.properties?.population ?? 0))
         .map((f, i) => [String(f.properties?.id), i + 1])
     );
+const communeCellCount = new Map();
+const communePop = new Map();
+for (const f of features) {
+  const name = f.properties?.name_fr ?? f.properties?.name_nl ?? '?';
+  communeCellCount.set(name, (communeCellCount.get(name) ?? 0) + 1);
+  communePop.set(name, f.properties?.population ?? 0);
+}
+const totalCommunes = communeCellCount.size;
 
     const initialBricks = features
       .map((f) => {
@@ -69,12 +77,16 @@ const groupe1 = f.properties?.groupe1 ?? 1;
       })
       .filter((b) => Number.isFinite(b.x) && Number.isFinite(b.w) && b.w > 0 && b.h > 0);
 
-    const totalPop = initialBricks.reduce((s, b) => s + b.pop, 0);
-    const topCity = initialBricks.reduce((a, b) => (b.pop > a.pop ? b : a), initialBricks[0]);
-    return { maxPop, initialBricks, totalPop, topCity };
+    const totalPop = [...communePop.values()].reduce((s, p) => s + p, 0);
+const topCity = initialBricks.reduce((a, b) => (b.pop > a.pop ? b : a), initialBricks[0]);
+return { maxPop, initialBricks, totalPop, topCity, communeCellCount, totalCommunes };
   })();
 
-  const { maxPop, initialBricks, totalPop, topCity } = setup;
+  const { maxPop, initialBricks, totalPop, topCity, communeCellCount, totalCommunes } = setup;
+function freshCommuneRemaining() {
+  return new Map(communeCellCount);
+}
+let communeRemaining = $state(freshCommuneRemaining());
   const popColor = (pop, groupe1) => heat(Math.sqrt(pop) / Math.sqrt(maxPop), groupe1);
 
   let bricks = $state(initialBricks.map((b) => ({ ...b })));
@@ -225,6 +237,7 @@ const groupe1 = f.properties?.groupe1 ?? 1;
     destroyed = [];
     freedCount = 0;
     freedPop = 0;
+communeRemaining = freshCommuneRemaining();
     mission = null;
     missionsDone = 0;
     mode = null;
@@ -326,8 +339,12 @@ const groupe1 = f.properties?.groupe1 ?? 1;
       missionFlash = 1;
     }
     score += gain;
-    freedCount += 1;
-    freedPop += b.pop;
+    const remaining = (communeRemaining.get(b.name) ?? 1) - 1;
+communeRemaining.set(b.name, remaining);
+if (remaining <= 0) {
+  freedCount += 1;
+  freedPop += b.pop;
+}
 
     destroyed.unshift({
       key: destroyedSeq++,
@@ -674,7 +691,7 @@ const groupe1 = f.properties?.groupe1 ?? 1;
         <div class="result-overlay">
           <span class="result-title lose">Partie terminée</span>
           <span class="result-sub">{fmt.format(score)} points</span>
-          <span class="result-line">{freedCount} communes libérées sur {totalBricks} ({pct}%)</span>
+          <span class="result-line">{freedCount} communes libérées sur {totalCommunes} ({pct}%)</span>
           <span class="result-line">{popPct}% de la population CCAPV libérée</span>
           {#if mode === 'objective'}
             <span class="result-line">{missionsDone} objectif{missionsDone > 1 ? 's' : ''} accompli{missionsDone > 1 ? 's' : ''}</span>
@@ -754,7 +771,7 @@ const groupe1 = f.properties?.groupe1 ?? 1;
       <header class="log-head">
         <h2>Communes libérées</h2>
         <span class="log-count">
-          {freedCount}<span class="of"> / {totalBricks}</span>
+          {freedCount}<span class="of"> / {totalCommunes}</span>
         </span>
       </header>
       <div class="log-sub">
